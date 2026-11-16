@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f0f1a" />
+  <title>FilterX – Photo Filters</title>
+  <style>
+    /* ===== CSS RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d1a;
+      --bg2: #12122a;
+      --glass: rgba(255,255,255,0.07);
+      --glass-border: rgba(255,255,255,0.15);
+      --glass-hover: rgba(255,255,255,0.12);
+      --accent: #a855f7;
+      --accent2: #6366f1;
+      --accent3: #ec4899;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --radius: 20px;
+      --radius-sm: 12px;
+      --shadow: 0 8px 32px rgba(0,0,0,0.5);
+      --shadow-accent: 0 0 30px rgba(168,85,247,0.3);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html, body {
+      height: 100%; width: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* ===== ANIMATED BACKGROUND ===== */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 20%, rgba(99,102,241,0.2) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 80% 80%, rgba(168,85,247,0.2) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 60% 10%, rgba(236,72,153,0.1) 0%, transparent 50%),
+        var(--bg);
+      animation: bgPulse 8s ease-in-out infinite alternate;
+    }
+    @keyframes bgPulse {
+      0%   { opacity: 0.8; }
+      100% { opacity: 1; }
+    }
+
+    /* ===== APP SHELL ===== */
+    #app {
+      position: relative; z-index: 1;
+      height: 100%; width: 100%;
+      display: flex; flex-direction: column;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 12px;
+      background: rgba(13,13,26,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-size: 22px; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+    .logo span { font-weight: 300; }
+    .header-actions { display: flex; gap: 10px; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s;
+      font-size: 18px;
+    }
+    .icon-btn:active { transform: scale(0.9); background: var(--glass-hover); }
+
+    /* ===== MAIN CANVAS AREA ===== */
+    #canvas-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      padding: 12px;
+    }
+    #canvas-wrapper {
+      position: relative;
+      width: 100%; max-width: 420px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #main-canvas {
+      max-width: 100%; max-height: 320px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow), var(--shadow-accent);
+      display: block;
+      object-fit: contain;
+      transition: filter 0.3s ease;
+    }
+    #placeholder {
+      width: 100%; max-width: 320px;
+      aspect-ratio: 4/3;
+      border-radius: var(--radius);
+      border: 2px dashed var(--glass-border);
+      background: var(--glass);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      cursor: pointer; transition: all 0.3s;
+    }
+    #placeholder:hover, #placeholder:active {
+      border-color: var(--accent);
+      background: rgba(168,85,247,0.08);
+    }
+    .placeholder-icon {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      box-shadow: 0 0 25px rgba(168,85,247,0.4);
+    }
+    .placeholder-text { text-align: center; }
+    .placeholder-text h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .placeholder-text p { font-size: 13px; color: var(--text-muted); }
+
+    /* ===== FILTER CONTROLS (SLIDERS) ===== */
+    #controls-panel {
+      background: rgba(13,13,26,0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--glass-border);
+      padding: 14px 20px;
+      flex-shrink: 0;
+    }
+    .adjustments-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .adj-item label {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 500;
+      color: var(--text-muted); margin-bottom: 5px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .adj-item label span {
+      color: var(--accent); font-weight: 700; font-size: 11px;
+    }
+    .adj-item input[type=range] {
+      width: 100%; height: 4px;
+      -webkit-appearance: none; appearance: none;
+      background: var(--glass-border);
+      border-radius: 2px; outline: none; cursor: pointer;
+    }
+    .adj-item input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 8px rgba(168,85,247,0.6);
+      cursor: pointer; border: 2px solid rgba(255,255,255,0.2);
+      transition: transform 0.15s;
+    }
+    .adj-item input[type=range]:active::-webkit-slider-thumb {
+      transform: scale(1.3);
+    }
+
+    /* ===== FILTER PRESETS ===== */
+    #presets-panel {
+      background: rgba(13,13,26,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--glass-border);
+      padding: 12px 0 12px 16px;
+      flex-shrink: 0;
+    }
+    .presets-label {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-muted); margin-bottom: 10px;
+      padding-right: 16px;
+    }
+    #presets-scroll {
+      display: flex; gap: 10px;
+      overflow-x: auto; padding-right: 16px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #presets-scroll::-webkit-scrollbar { display: none; }
+    .preset-item {
+      flex-shrink: 0; cursor: pointer;
+      text-align: center; width: 68px;
+      transition: transform 0.2s;
+    }
+    .preset-item:active { transform: scale(0.92); }
+    .preset-thumb {
+      width: 68px; height: 68px;
+      border-radius: 14px;
+      border: 2px solid transparent;
+      overflow: hidden;
+      background: var(--glass);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .preset-thumb canvas {
+      width: 100%; height: 100%;
+      display: block;
+    }
+    .preset-item.active .preset-thumb {
+      border-color: var(--accent);
+      box-shadow: 0 0 14px rgba(168,85,247,0.5);
+    }
+    .preset-name {
+      font-size: 10px; color: var(--text-muted);
+      margin-top: 5px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .preset-item.active .preset-name { color: var(--accent); font-weight: 600; }
+
+    /* ===== BOTTOM ACTION BAR ===== */
+    #bottom-bar {
+      display: flex; gap: 10px;
+      padding: 10px 20px 14px;
+      background: rgba(13,13,26,0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--glass-border);
+      flex-shrink: 0;
+    }
+    .btn {
+      flex: 1; padding: 13px;
+      border-radius: var(--radius-sm);
+      border: none; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn-secondary {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--text);
+    }
+    .btn-secondary:active { background: var(--glass-hover); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+    }
+    .btn-primary:disabled {
+      opacity: 0.4; cursor: not-allowed;
+      box-shadow: none;
+    }
+    .btn-danger {
+      background: rgba(236,72,153,0.15);
+      border: 1px solid rgba(236,72,153,0.3);
+      color: #ec4899; flex: 0 0 auto; padding: 13px 16px;
+    }
+
+    /* ===== TOAST NOTIFICATION ===== */
+    #toast {
+      position: fixed; bottom: calc(90px + var(--safe-bottom));
+      left: 50%; transform: translateX(-50%) translateY(20px);
+      background: rgba(30,30,50,0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      color: var(--text); padding: 10px 20px;
+      border-radius: 100px; font-size: 13px; font-weight: 500;
+      white-space: nowrap; z-index: 1000;
+      opacity: 0; transition: all 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: rgba(74,222,128,0.4); color: #4ade80; }
+    #toast.error   { border-color: rgba(248,113,113,0.4); color: #f87171; }
+
+    /* ===== LOADING OVERLAY ===== */
+    #loading {
+      position: fixed; inset: 0; z-index: 2000;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(13,13,26,0.8);
+      backdrop-filter: blur(10px);
+    }
+    #loading.show { display: flex; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid var(--glass-border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== COMPARE OVERLAY ===== */
+    #compare-label {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      color: #fff; font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 100px;
+      pointer-events: none; opacity: 0; transition: opacity 0.3s;
+      letter-spacing: 0.5px;
+    }
+    #compare-label.show { opacity: 1; }
+
+    /* ===== RANGE ACTIVE TRACK COLOR ===== */
+    input[type=range] { accent-color: var(--accent); }
+
+    /* ===== HIDDEN FILE INPUT ===== */
+    #file-input { display: none; }
+
+    /* ===== COMPARE BTN ACTIVE STATE ===== */
+    .icon-btn.active {
+      background: rgba(168,85,247,0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ===== LANDSCAPE ADJUSTMENTS ===== */
+    @media (orientation: landscape) and (max-height: 500px) {
+      #main-canvas { max-height: 200px; }
+      .adjustments-grid { grid-template-columns: repeat(4, 1fr); }
+      #presets-panel { padding: 8px 0 8px 12px; }
+      .preset-thumb { width: 54px; height: 54px; }
+      .preset-item { width: 54px; }
+    }
+  </style>
+</head>
+<body>
+<input type="file" id="file-input" accept="image/*" />
+<div id="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">Filter<span>X</span></div>
+    <div class="header-actions">
+      <button class="icon-btn" id="compare-btn" title="Compare Original" aria-label="Compare">👁️</button>
+      <button class="icon-btn" id="reset-btn" title="Reset All" aria-label="Reset">↺</button>
+    </div>
+  </header>
+
+  <!-- CANVAS AREA -->
+  <div id="canvas-area">
+    <div id="canvas-wrapper">
+      <canvas id="main-canvas" style="display:none;"></canvas>
+      <span id="compare-label">ORIGINAL</span>
+      <div id="placeholder" role="button" tabindex="0" aria-label="Open Gallery">
+        <div class="placeholder-icon">🖼️</div>
+        <div class="placeholder-text">
+          <h3>Open a Photo</h3>
+          <p>Tap to browse your gallery</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTER PRESETS -->
+  <div id="presets-panel">
+    <div class="presets-label">🎨 Filters</div>
+    <div id="presets-scroll"></div>
+  </div>
+
+  <!-- MANUAL ADJUSTMENTS -->
+  <div id="controls-panel">
+    <div class="adjustments-grid" id="adjustments-grid">
+      <!-- Dynamically inserted -->
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div id="bottom-bar">
+    <button class="btn btn-secondary" id="open-btn">📂 Gallery</button>
+    <button class="btn btn-primary" id="save-btn" disabled>💾 Save Photo</button>
+    <button class="btn btn-danger" id="clear-btn" title="Clear" aria-label="Clear">🗑️</button>
+  </div>
+
+</div>
+
+<!-- LOADING -->
+<div id="loading"><div class="spinner"></div></div>
+
+<!-- TOAST -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==============================
+     STATE
+  ============================== */
+  const state = {
+    originalImage: null,          // ImageBitmap of the loaded image
+    currentPreset: 'original',
+    comparing: false,
+    adj: {
+      brightness: 100,
+      contrast:   100,
+      saturation: 100,
+      warmth:     0,
+      vignette:   0,
+      blur:       0,
+      sharpen:    0,
+      fade:       0,
+    },
+    presetAdj: null,              // the preset's adj values (before manual sliders)
+  };
+
+  /* ==============================
+     DOM REFS
+  ============================== */
+  const $  = id => document.getElementById(id);
+  const mainCanvas   = $('main-canvas');
+  const ctx          = mainCanvas.getContext('2d', { willReadFrequently: true });
+  const placeholder  = $('placeholder');
+  const fileInput    = $('file-input');
+  const saveBtn      = $('save-btn');
+  const openBtn      = $('open-btn');
+  const clearBtn     = $('clear-btn');
+  const compareBtn   = $('compare-btn');
+  const resetBtn     = $('reset-btn');
+  const presetsScroll= $('presets-scroll');
+  const adjGrid      = $('adjustments-grid');
+  const toast        = $('toast');
+  const loading      = $('loading');
+  const compareLabel = $('compare-label');
+
+  /* ==============================
+     FILTER PRESETS DEFINITIONS
+  ============================== */
+  const PRESETS = [
+    { id: 'original',  name: 'Original',  adj: { brightness:100, contrast:100, saturation:100, warmth:0,   vignette:0,  blur:0, sharpen:0, fade:0  }, lut: null },
+    { id: 'vivid',     name: 'Vivid',     adj: { brightness:108, contrast:118, saturation:140, warmth:5,   vignette:10, blur:0, sharpen:5, fade:0  }, lut: null },
+    { id: 'chrome',    name: 'Chrome',    adj: { brightness:110, contrast:130, saturation:80,  warmth:0,   vignette:15, blur:0, sharpen:8, fade:5  }, lut: null },
+    { id: 'fade',      name: 'Fade',      adj: { brightness:115, contrast:85,  saturation:70,  warmth:8,   vignette:0,  blur:0, sharpen:0, fade:30 }, lut: null },
+    { id: 'noir',      name: 'Noir',      adj: { brightness:95,  contrast:135, saturation:0,   warmth:0,   vignette:30, blur:0, sharpen:5, fade:0  }, lut: null },
+    { id: 'warm',      name: 'Warm',      adj: { brightness:105, contrast:105, saturation:110, warmth:25,  vignette:5,  blur:0, sharpen:0, fade:0  }, lut: null },
+    { id: 'cool',      name: 'Cool',      adj: { brightness:100, contrast:105, saturation:105, warmth:-25, vignette:5,  blur:0, sharpen:0, fade:0  }, lut: null },
+    { id: 'golden',    name: 'Golden',    adj: { brightness:112, contrast:110, saturation:120, warmth:40,  vignette:20, blur:0, sharpen:3, fade:5  }, lut: null },
+    { id: 'matte',     name: 'Matte',     adj: { brightness:110, contrast:88,  saturation:85,  warmth:12,  vignette:0,  blur:0, sharpen:0, fade:22 }, lut: null },
+    { id: 'moody',     name: 'Moody',     adj: { brightness:88,  contrast:120, saturation:90,  warmth:-10, vignette:40, blur:0, sharpen:4, fade:0  }, lut: null },
+    { id: 'dreamy',    name: 'Dreamy',    adj: { brightness:115, contrast:85,  saturation:115, warmth:10,  vignette:5,  blur:1, sharpen:0, fade:15 }, lut: null },
+    { id: 'retro',     name: 'Retro',     adj: { brightness:100, contrast:100, saturation:60,  warmth:30,  vignette:35, blur:0, sharpen:0, fade:20 }, lut: null },
+    { id: 'punch',     name: 'Punch',     adj: { brightness:102, contrast:140, saturation:150, warmth:0,   vignette:8,  blur:0, sharpen:8, fade:0  }, lut: null },
+    { id: 'pastel',    name: 'Pastel',    adj: { brightness:120, contrast:80,  saturation:80,  warmth:5,   vignette:0,  blur:0, sharpen:0, fade:30 }, lut: null },
+    { id: 'teal',      name: 'Teal&Ora',  adj: { brightness:100, contrast:112, saturation:110, warmth:-15, vignette:12, blur:0, sharpen:5, fade:0  }, lut: 'tealOrange' },
+    { id: 'cinema',    name: 'Cinema',    adj: { brightness:92,  contrast:125, saturation:85,  warmth:-5,  vignette:45, blur:0, sharpen:6, fade:8  }, lut: 'cinema'    },
+  ];
+
+  /* ==============================
+     SLIDER DEFINITIONS
+  ============================== */
+  const SLIDERS = [
+    { key: 'brightness', label: '☀️ Bright',  min: 50,  max: 200, def: 100 },
+    { key: 'contrast',   label: '◑ Contrast', min: 50,  max: 200, def: 100 },
+    { key: 'saturation', label: '🌈 Saturate', min: 0,   max: 200, def: 100 },
+    { key: 'warmth',     label: '🌡️ Warmth',  min: -50, max: 50,  def: 0   },
+    { key: 'vignette',   label: '⬛ Vignette', min: 0,   max: 100, def: 0   },
+    { key: 'blur',       label: '💫 Blur',     min: 0,   max: 10,  def: 0   },
+    { key: 'sharpen',    label: '🔪 Sharpen',  min: 0,   max: 20,  def: 0   },
+    { key: 'fade',       label: '🌫️ Fade',    min: 0,   max: 60,  def: 0   },
+  ];
+
+  /* ==============================
+     BUILD SLIDERS UI
+  ============================== */
+  function buildSliders() {
+    adjGrid.innerHTML = '';
+    SLIDERS.forEach(s => {
+      const wrap = document.createElement('div');
+      wrap.className = 'adj-item';
+      const valId = 'val-' + s.key;
+      wrap.innerHTML = `
+        <label for="sl-${s.key}">${s.label} <span id="${valId}">${state.adj[s.key]}</span></label>
+        <input type="range" id="sl-${s.key}" min="${s.min}" max="${s.max}" step="1" value="${state.adj[s.key]}" />
+      `;
+      adjGrid.appendChild(wrap);
+      const input = wrap.querySelector('input');
+      const valEl = wrap.querySelector('span');
+      input.addEventListener('input', () => {
+        state.adj[s.key] = +input.value;
+        valEl.textContent = input.value;
+        if (state.originalImage) render();
+      });
+    });
+  }
+
+  function syncSliders() {
+    SLIDERS.forEach(s => {
+      const input = document.getElementById('sl-' + s.key);
+      const valEl = document.getElementById('val-' + s.key);
+      if (input) {
+        input.value = state.adj[s.key];
+        valEl.textContent = state.adj[s.key];
+      }
+    });
+  }
+
+  /* ==============================
+     BUILD PRESET THUMBNAILS
+  ============================== */
+  function buildPresets() {
+    presetsScroll.innerHTML = '';
+    PRESETS.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'preset-item' + (p.id === state.currentPreset ? ' active' : '');
+      item.dataset.id = p.id;
+      item.innerHTML = `
+        <div class="preset-thumb">
+          <canvas id="thumb-${p.id}" width="68" height="68"></canvas>
+        </div>
+        <div class="preset-name">${p.name}</div>
+      `;
+      item.addEventListener('click', () => applyPreset(p.id));
+      presetsScroll.appendChild(item);
+    });
+  }
+
+  function updatePresetThumbs() {
+    if (!state.originalImage) return;
+    PRESETS.forEach(p => {
+      const tc = document.getElementById('thumb-' + p.id);
+      if (!tc) return;
+      const tctx = tc.getContext('2d', { willReadFrequently: true });
+      // Draw image cropped to square
+      const img = state.originalImage;
+      const size = Math.min(img.width, img.height);
+      const sx = (img.width  - size) / 2;
+      const sy = (img.height - size) / 2;
+      tctx.drawImage(img, sx, sy, size, size, 0, 0, 68, 68);
+      // Apply preset adjustments (simplified for thumbnail speed)
+      applyPixelEffects(tctx, 68, 68, p.adj, p.lut);
+    });
+  }
+
+  /* ==============================
+     IMAGE LOAD
+  ============================== */
+  function openFile() {
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file', 'error'); return;
+    }
+    if (file.size > 30 * 1024 * 1024) {
+      showToast('Image too large (max 30 MB)', 'error'); return;
+    }
+    loading.classList.add('show');
+    try {
+      const bmp = await createImageBitmap(file);
+      state.originalImage = bmp;
+      // Setup canvas dimensions (cap at 2048 for performance)
+      const maxSide = 2048;
+      let w = bmp.width, h = bmp.height;
+      if (w > maxSide || h > maxSide) {
+        const ratio = Math.min(maxSide / w, maxSide / h);
+        w = Math.round(w * ratio); h = Math.round(h * ratio);
+      }
+      mainCanvas.width = w; mainCanvas.height = h;
+      // Reset state
+      resetAdj();
+      state.currentPreset = 'original';
+      // Show canvas
+      placeholder.style.display = 'none';
+      mainCanvas.style.display = 'block';
+      saveBtn.disabled = false;
+      // Render
+      await render();
+      updatePresetThumbs();
+      refreshPresetHighlight();
+      showToast('Photo loaded! ✨', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Could not load image', 'error');
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  /* ==============================
+     RENDER
+  ============================== */
+  async function render() {
+    if (!state.originalImage) return;
+    const img = state.originalImage;
+    const w = mainCanvas.width, h = mainCanvas.height;
+
+    // Draw base
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // Apply pixel effects
+    applyPixelEffects(ctx, w, h, state.adj, currentPresetLut());
+  }
+
+  function currentPresetLut() {
+    const p = PRESETS.find(x => x.id === state.currentPreset);
+    return p ? p.lut : null;
+  }
+
+  /* ==============================
+     PIXEL EFFECTS ENGINE
+  ============================== */
+  function applyPixelEffects(context, w, h, adj, lut) {
+    // 1. Blur (box blur workaround without filters for canvas compat)
+    if (adj.blur > 0) {
+      context.filter = `blur(${adj.blur}px)`;
+      const imgData_tmp = context.getImageData(0, 0, w, h);
+      context.putImageData(imgData_tmp, 0, 0); // no-op trick
+      // Redraw with blur filter
+      const snap = context.getImageData(0, 0, w, h);
+      context.putImageData(snap, 0, 0);
+      context.filter = `blur(${adj.blur}px)`;
+      context.drawImage(context.canvas, 0, 0);
+      context.filter = 'none';
+    }
+
+    // 2. Get pixel data
+    let imageData;
+    try {
+      imageData = context.getImageData(0, 0, w, h);
+    } catch(e) {
+      return; // cross-origin guard
+    }
+    const data = imageData.data;
+
+    const brightness = adj.brightness / 100;
+    const contrast   = adj.contrast   / 100;
+    const saturation = adj.saturation / 100;
+    const warmth     = adj.warmth;
+    const fade       = adj.fade / 100;
+
+    // Pre-compute contrast factor
+    const contrastFactor = (259 * (contrast * 255 - 255 + 255)) / (255 * (259 - (contrast * 255 - 255 + 255)));
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i+1], b = data[i+2];
+
+      // 1. Brightness
+      r *= brightness; g *= brightness; b *= brightness;
+
+      // 2. Contrast
+      r = contrastFactor * (r - 128) + 128;
+      g = contrastFactor * (g - 128) + 128;
+      b = contrastFactor * (b - 128) + 128;
+
+      // 3. Saturation (via luminance)
+      const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      r = lum + saturation * (r - lum);
+      g = lum + saturation * (g - lum);
+      b = lum + saturation * (b - lum);
+
+      // 4. Warmth (shift red/blue channels)
+      r += warmth * 2;
+      g += warmth * 0.5;
+      b -= warmth * 1.5;
+
+      // 5. Fade (lift blacks toward gray)
+      if (fade > 0) {
+        const lift = fade * 50;
+        r = r + (lift - r * fade * 0.3);
+        g = g + (lift - g * fade * 0.3);
+        b = b + (lift - b * fade * 0.3);
+      }
+
+      // 6. LUT (special color grading)
+      if (lut === 'tealOrange') {
+        // Boost oranges in highlights, teals in shadows
+        const avg = (r + g + b) / 3;
+        if (avg > 128) {
+          r += 15; g += 5; b -= 10; // push warm
+        } else {
+          r -= 10; g += 5; b += 20; // push teal
+        }
+      } else if (lut === 'cinema') {
+        // Desaturate highs, crush shadows, slight teal
+        const avg2 = (r + g + b) / 3;
+        if (avg2 > 200) {
+          const lum2 = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          r = lum2 + 0.6 * (r - lum2);
+          g = lum2 + 0.6 * (g - lum2);
+          b = lum2 + 0.6 * (b - lum2);
+        }
+        b += 8; g += 3;
+      }
+
+      // Clamp
+      data[i]   = clamp(r);
+      data[i+1] = clamp(g);
+      data[i+2] = clamp(b);
+    }
+
+    context.putImageData(imageData, 0, 0);
+
+    // 7. Sharpen convolution (after pixel ops)
+    if (adj.sharpen > 0) {
+      applySharpen(context, w, h, adj.sharpen);
+    }
+
+    // 8. Vignette
+    if (adj.vignette > 0) {
+      applyVignette(context, w, h, adj.vignette / 100);
+    }
+  }
+
+  function clamp(v) {
+    return v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+  }
+
+  function applySharpen(context, w, h, strength) {
+    // 3x3 unsharp mask
+    const factor = strength / 20; // 0–1
+    const id = context.getImageData(0, 0, w, h);
+    const src = new Uint8ClampedArray(id.data);
+    const d   = id.data;
+    const kernel = [
+      0, -factor, 0,
+      -factor, 1 + 4 * factor, -factor,
+      0, -factor, 0,
+    ];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const idx = (y * w + x) * 4;
+        for (let c = 0; c < 3; c++) {
+          d[idx + c] = clamp(
+            kernel[0] * src[((y-1)*w+(x-1))*4+c] +
+            kernel[1] * src[((y-1)*w+ x   )*4+c] +
+            kernel[2] * src[((y-1)*w+(x+1))*4+c] +
+            kernel[3] * src[( y   *w+(x-1))*4+c] +
+            kernel[4] * src[( y   *w+ x   )*4+c] +
+            kernel[5] * src[( y   *w+(x+1))*4+c] +
+            kernel[6] * src[((y+1)*w+(x-1))*4+c] +
+            kernel[7] * src[((y+1)*w+ x   )*4+c] +
+            kernel[8] * src[((y+1)*w+(x+1))*4+c]
+          );
+        }
+        d[idx + 3] = src[idx + 3];
+      }
+    }
+    context.putImageData(id, 0, 0);
+  }
+
+  function applyVignette(context, w, h, strength) {
+    const cx = w / 2, cy = h / 2;
+    const radius = Math.sqrt(cx * cx + cy * cy);
+    const grad = context.createRadialGradient(cx, cy, radius * (1 - strength * 0.8), cx, cy, radius);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${Math.min(strength * 0.85, 0.85)})`);
+    context.fillStyle = grad;
+    context.fillRect(0, 0, w, h);
+  }
+
+  /* ==============================
+     APPLY PRESET
+  ============================== */
+  function applyPreset(id) {
+    const preset = PRESETS.find(p => p.id === id);
+    if (!preset) return;
+    state.currentPreset = id;
+    Object.assign(state.adj, { ...preset.adj });
+    syncSliders();
+    refreshPresetHighlight();
+    if (state.originalImage) render();
+  }
+
+  function refreshPresetHighlight() {
+    document.querySelectorAll('.preset-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === state.currentPreset);
+    });
+  }
+
+  /* ==============================
+     RESET
+  ============================== */
+  function resetAdj() {
+    SLIDERS.forEach(s => { state.adj[s.key] = s.def; });
+    state.currentPreset = 'original';
+  }
+
+  resetBtn.addEventListener('click', () => {
+    resetAdj();
+    syncSliders();
+    refreshPresetHighlight();
+    if (state.originalImage) render();
+    showToast('Adjustments reset');
+  });
+
+  /* ==============================
+     COMPARE ORIGINAL
+  ============================== */
+  compareBtn.addEventListener('pointerdown', () => {
+    if (!state.originalImage) return;
+    state.comparing = true;
+    compareBtn.classList.add('active');
+    compareLabel.classList.add('show');
+    // Draw original
+    ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    ctx.drawImage(state.originalImage, 0, 0, mainCanvas.width, mainCanvas.height);
+  });
+  compareBtn.addEventListener('pointerup', endCompare);
+  compareBtn.addEventListener('pointerleave', endCompare);
+  function endCompare() {
+    if (!state.comparing) return;
+    state.comparing = false;
+    compareBtn.classList.remove('active');
+    compareLabel.classList.remove('show');
+    if (state.originalImage) render();
+  }
+
+  /* ==============================
+     SAVE PHOTO
+  ============================== */
+  saveBtn.addEventListener('click', async () => {
+    if (!state.originalImage) return;
+    loading.classList.add('show');
+    try {
+      // Render at full resolution
+      const img    = state.originalImage;
+      const offCanvas = new OffscreenCanvas(img.width, img.height);
+      const offCtx    = offCanvas.getContext('2d', { willReadFrequently: true });
+      offCtx.drawImage(img, 0, 0);
+      applyPixelEffects(offCtx, img.width, img.height, state.adj, currentPresetLut());
+
+      const blob = await offCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.95 });
+      const url  = URL.createObjectURL(blob);
+
+      // Try native share (mobile) first
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'filterx.jpg', { type: 'image/jpeg' })] })) {
+        const file = new File([blob], 'filterx_photo.jpg', { type: 'image/jpeg' });
+        await navigator.share({ files: [file], title: 'FilterX Photo' });
+        showToast('Photo shared! 🎉', 'success');
+      } else {
+        // Fallback: download
+        const a = document.createElement('a');
+        a.href = url; a.download = 'filterx_photo.jpg';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        showToast('Photo saved! 💾', 'success');
+      }
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        // Fallback to data URL download
+        try {
+          const dataUrl = mainCanvas.toDataURL('image/jpeg', 0.95);
+          const a = document.createElement('a');
+          a.href = dataUrl; a.download = 'filterx_photo.jpg';
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          showToast('Photo saved! 💾', 'success');
+        } catch(e2) {
+          showToast('Could not save photo', 'error');
+        }
+      }
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  /* ==============================
+     CLEAR
+  ============================== */
+  clearBtn.addEventListener('click', () => {
+    if (!state.originalImage) return;
+    state.originalImage = null;
+    mainCanvas.style.display = 'none';
+    placeholder.style.display = 'flex';
+    saveBtn.disabled = true;
+    resetAdj();
+    syncSliders();
+    refreshPresetHighlight();
+    // Clear thumbnails
+    PRESETS.forEach(p => {
+      const tc = document.getElementById('thumb-' + p.id);
+      if (tc) tc.getContext('2d').clearRect(0, 0, 68, 68);
+    });
+    showToast('Cleared');
+  });
+
+  /* ==============================
+     OPEN GALLERY
+  ============================== */
+  openBtn.addEventListener('click', openFile);
+  placeholder.addEventListener('click', openFile);
+  placeholder.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openFile(); });
+
+  /* ==============================
+     DRAG & DROP (desktop/tablet)
+  ============================== */
+  const canvasArea = document.getElementById('canvas-area');
+  canvasArea.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  canvasArea.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event('change'));
+    }
+  });
+
+  /* ==============================
+     TOAST
+  ============================== */
+  let toastTimer;
+  function showToast(msg, type = '') {
+    clearTimeout(toastTimer);
+    toast.textContent = msg;
+    toast.className = 'show' + (type ? ' ' + type : '');
+    toastTimer = setTimeout(() => { toast.className = ''; }, 2500);
+  }
+
+  /* ==============================
+     INIT
+  ============================== */
+  buildSliders();
+  buildPresets();
+
+})();
+</script>
+</body>
+</html>
